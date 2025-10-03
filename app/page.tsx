@@ -1,103 +1,269 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
+
+interface RsiData {
+  token_address: string;
+  token_name: string;
+  rsi: number;
+  current_price: number;
+  timestamp: string;
+}
+
+interface ChartDataPoint {
+  time: string;
+  price: number;
+  rsi: number;
+}
+
+export default function Dashboard() {
+  const [selectedToken, setSelectedToken] = useState<string>("TokenA");
+  const [tokenData, setTokenData] = useState<{
+    [key: string]: ChartDataPoint[];
+  }>({});
+  const [latestData, setLatestData] = useState<{ [key: string]: RsiData }>({});
+  const [isConnected, setIsConnected] = useState(false);
+
+  useEffect(() => {
+    const eventSource = new EventSource("/api/stream");
+
+    eventSource.onopen = () => {
+      console.log("✅ Connected to stream");
+      setIsConnected(true);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data: RsiData = JSON.parse(event.data);
+
+        // Update latest data
+        setLatestData((prev) => ({
+          ...prev,
+          [data.token_name]: data,
+        }));
+
+        // Update chart data
+        setTokenData((prev) => {
+          const tokenHistory = prev[data.token_name] || [];
+          const newPoint: ChartDataPoint = {
+            time: new Date(data.timestamp).toLocaleTimeString(),
+            price: data.current_price,
+            rsi: data.rsi,
+          };
+
+          // Keep last 20 data points
+          const updatedHistory = [...tokenHistory, newPoint].slice(-20);
+
+          return {
+            ...prev,
+            [data.token_name]: updatedHistory,
+          };
+        });
+      } catch (error) {
+        console.error("Failed to parse message:", error);
+      }
+    };
+
+    eventSource.onerror = () => {
+      console.error("❌ Stream connection error");
+      setIsConnected(false);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
+  const currentTokenData = tokenData[selectedToken] || [];
+  const currentLatest = latestData[selectedToken];
+  const availableTokens = Object.keys(latestData);
+
+  const getRsiStatus = (rsi: number) => {
+    if (rsi > 70)
+      return { text: "OVERBOUGHT", color: "text-red-600", bg: "bg-red-100" };
+    if (rsi < 30)
+      return { text: "OVERSOLD", color: "text-green-600", bg: "bg-green-100" };
+    return { text: "NEUTRAL", color: "text-blue-600", bg: "bg-blue-100" };
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            Trading Analytics Dashboard
+          </h1>
+          <p className="text-gray-400">
+            Real-time RSI monitoring for Solana tokens
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <div
+              className={`w-3 h-3 rounded-full ${
+                isConnected ? "bg-green-500" : "bg-red-500"
+              } animate-pulse`}
+            ></div>
+            <span className="text-sm text-gray-400">
+              {isConnected ? "Connected to stream" : "Disconnected"}
+            </span>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {/* Token Selector */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-2 text-gray-300">
+            Select Token
+          </label>
+          <select
+            value={selectedToken}
+            onChange={(e) => setSelectedToken(e.target.value)}
+            className="w-full md:w-64 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+          >
+            {availableTokens.length > 0 ? (
+              availableTokens.map((token) => (
+                <option key={token} value={token}>
+                  {token}
+                </option>
+              ))
+            ) : (
+              <option value="TokenA">Waiting for data...</option>
+            )}
+          </select>
+        </div>
+
+        {/* Current Values */}
+        {currentLatest && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <h3 className="text-sm font-medium text-gray-400 mb-2">
+                Current Price
+              </h3>
+              <p className="text-3xl font-bold text-blue-400">
+                {currentLatest.current_price.toFixed(6)} SOL
+              </p>
+            </div>
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <h3 className="text-sm font-medium text-gray-400 mb-2">
+                RSI (14)
+              </h3>
+              <p className="text-3xl font-bold text-purple-400">
+                {currentLatest.rsi.toFixed(2)}
+              </p>
+            </div>
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <h3 className="text-sm font-medium text-gray-400 mb-2">
+                Market Status
+              </h3>
+              <div
+                className={`inline-block px-4 py-2 rounded-lg ${
+                  getRsiStatus(currentLatest.rsi).bg
+                } mt-1`}
+              >
+                <p
+                  className={`text-xl font-bold ${
+                    getRsiStatus(currentLatest.rsi).color
+                  }`}
+                >
+                  {getRsiStatus(currentLatest.rsi).text}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Price Chart */}
+        <div className="bg-gray-800 rounded-xl p-6 mb-6 border border-gray-700">
+          <h2 className="text-xl font-semibold mb-4">Price Movement</h2>
+          {currentTokenData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={currentTokenData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" domain={["auto", "auto"]} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1F2937",
+                    border: "1px solid #374151",
+                    borderRadius: "8px",
+                  }}
+                  labelStyle={{ color: "#9CA3AF" }}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="price"
+                  stroke="#3B82F6"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Price (SOL)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-500">
+              Waiting for data...
+            </div>
+          )}
+        </div>
+
+        {/* RSI Chart */}
+        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+          <h2 className="text-xl font-semibold mb-4">RSI Indicator</h2>
+          {currentTokenData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={currentTokenData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" stroke="#9CA3AF" />
+                <YAxis domain={[0, 100]} stroke="#9CA3AF" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1F2937",
+                    border: "1px solid #374151",
+                    borderRadius: "8px",
+                  }}
+                  labelStyle={{ color: "#9CA3AF" }}
+                />
+                <Legend />
+                <ReferenceLine
+                  y={70}
+                  stroke="#EF4444"
+                  strokeDasharray="3 3"
+                  label="Overbought"
+                />
+                <ReferenceLine
+                  y={30}
+                  stroke="#10B981"
+                  strokeDasharray="3 3"
+                  label="Oversold"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="rsi"
+                  stroke="#A855F7"
+                  strokeWidth={2}
+                  dot={false}
+                  name="RSI"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-500">
+              Waiting for data...
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
