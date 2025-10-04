@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
       try {
         await consumer.connect();
-        await consumer.subscribe({ topic: "rsi-data", fromBeginning: false });
+        await consumer.subscribe({ topic: "rsi-data", fromBeginning: true });
 
         console.log("✅ Connected to Redpanda, streaming RSI data...");
 
