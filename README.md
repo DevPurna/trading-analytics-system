@@ -264,8 +264,8 @@ This project was created as part of the YEBELO Technology Fullstack Developer Te
 
 ## Demo Video
 
-[Link to demo video showing complete system operation]
+https://www.loom.com/share/f6453f97dcd9457ea408dcbef280bf9e?sid=0fa817ab-649b-4a19-b50e-5ef8105ff2cd
 
 ## Contact
 
-For questions or issues, please contact [your contact information]
+For questions or issues, please contact [Purna, Gmail: sarma9618@gmail.com]
